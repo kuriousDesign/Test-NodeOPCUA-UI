@@ -1,0 +1,5 @@
+{
+    "Description": "This is the API documentation",
+    "writeBoolTag": "/api/writeBoolTag/:name/:val",
+    "readBoolTag": "/api/readBoolTag/:name"
+}
