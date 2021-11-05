@@ -76,6 +76,8 @@ export class OpcDataHandler {
             this.session = await this.client.createSession(this.adminUserIdentityToken);
             console.log("session created !");
 
+            //this.createSubscription();
+
         } catch (err) {
             console.log("An error has occured : ", err);
         }
@@ -94,9 +96,9 @@ export class OpcDataHandler {
             attributeId: AttributeIds.Value
         };
         var dataValue = await this.session.read(nodeToRead, this.maxAge);
-        console.log("dataValue from readBoolTag: ", dataValue.toString())
+        //console.log("dataValue from readBoolTag: ", dataValue.toString())
         var output = this.extractBoolean(dataValue);
-        console.log("output from readBoolTag/" + tag, ":", output.toString())
+        //console.log("output from readBoolTag/" + tag, ":", output.toString())
         cb(output);
         return output;
     }
@@ -109,13 +111,12 @@ export class OpcDataHandler {
             attributeId: AttributeIds.Value
         };
         var dataValue = await this.session.read(nodeToRead, this.maxAge);
-        console.log("dataValue from readIntTag: ", dataValue.toString())
+        //console.log("dataValue from readIntTag: ", dataValue.toString())
         var output = this.extractInt(dataValue);
-        console.log("output from readIntTag/" + tag, ":", output.toString())
+        //console.log("output from readIntTag/" + tag, ":", output.toString())
         cb(output);
         return output;
     }
-
 
     public extractBoolean(dataValue: DataValue) {
         //console.log(" Read of testStatus: ", dataValue.toString());
@@ -133,9 +134,7 @@ export class OpcDataHandler {
         return output;
     }
 
-
-
-    public async  writeBoolTag(tag: string, value: boolean) {
+    public async writeBoolTag(tag: string, value: boolean) {
         var nodeId = this.nodeIdBase + tag;
         var dataToWrite = {
             dataType: DataType.Boolean,
@@ -153,14 +152,15 @@ export class OpcDataHandler {
         };
 
         let result = await this.session.write(nodeToWrite);
-        console.log("write result: ", result.toString());
+        //console.log("write result: ", result.toString());
         return result;
     }
 
+    
 
-    private subscription: ClientSubscription;
-    public async subscribe(ioserver: Server,tag: string){
-        this.subscription = await this.session.createSubscription2({
+    public async createSubscription(){
+        console.log("creating subscription");
+        var subscription = ClientSubscription.create(this.session,{
             requestedPublishingInterval: 1000,
             requestedMaxKeepAliveCount: 10, 
             requestedLifetimeCount: 100,
@@ -169,7 +169,7 @@ export class OpcDataHandler {
             priority: 10,
         });
     
-        this.subscription
+        subscription
         .on("started", function() {
           console.log(
             "subscription started for 2 seconds - subscriptionId=",
@@ -182,6 +182,8 @@ export class OpcDataHandler {
         .on("terminated", function() {
             console.log(" TERMINATED ------------------------------>")
         });
+
+        var tag = "testInt";
     
         // install monitored item
         var nodeIdTag = this.nodeIdBase + tag;
@@ -197,7 +199,7 @@ export class OpcDataHandler {
         };
     
         const monitoredItem = ClientMonitoredItem.create(
-            this.subscription,
+            subscription,
             itemToMonitor,
             parameters,
             TimestampsToReturn.Both
@@ -205,12 +207,12 @@ export class OpcDataHandler {
     
         monitoredItem.on("changed", (dataValue: DataValue) => {
             console.log(" value has changed : ", dataValue.value.toString());
-            ioserver.sockets.emit('message', {
-                value: dataValue.value.value,
-                timestamp: dataValue.serverTimestamp,
-                nodeId: nodeIdTag,
-                browseName: "testInt"
-            });
+            // ioserver.sockets.emit('message', {
+            //     value: dataValue.value.value,
+            //     timestamp: dataValue.serverTimestamp,
+            //     nodeId: nodeIdTag,
+            //     browseName: "testInt"
+            // });
         });
     }
     

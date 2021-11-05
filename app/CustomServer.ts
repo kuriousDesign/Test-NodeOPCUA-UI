@@ -23,6 +23,8 @@ export class CustomServer {
     constructor() {
         this.opcdatahandler = new OpcDataHandler();
         this.opcdatahandler.connectToServer();
+  
+    
         
         this.app.get("/api", (req: Request, res: Response): void => {
             res.json(appJson);
@@ -72,7 +74,7 @@ export class CustomServer {
         this.io.on("connection", socket => {});
         var ioserver = this.httpServer.listen(port);
             //this.app.listen(port, () => console.log(`Server listening on port ${port}!`))
-        this.opcdatahandler.subscribe(this.io, "testInt"); 
+
     }
 
 }
