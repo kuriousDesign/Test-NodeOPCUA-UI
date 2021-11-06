@@ -4,5 +4,4 @@ import express from 'express';
 
 const port = 8080;
 
-const server = new CustomServer();
-server.start(port);
+const server = new CustomServer(port);

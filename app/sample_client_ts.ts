@@ -12,6 +12,7 @@ import {
     ClientMonitoredItem,
     UserTokenType,
     UserIdentityInfoUserName,
+    MonitoringMode,
     DataValue
   } from "node-opcua";
   
@@ -101,7 +102,7 @@ const adminUserIdentityToken: UserIdentityInfoUserName = {
           console.log("keepalive");
         })
         .on("terminated", function() {
-          console.log("terminated");
+          console.log("subscription terminated");
         });
       
       // install monitored item
@@ -120,6 +121,8 @@ const adminUserIdentityToken: UserIdentityInfoUserName = {
         queueSize: 10
       };
       
+      
+
       const monitoredItem = ClientMonitoredItem.create(
         subscription,
         itemToMonitor,
@@ -131,7 +134,18 @@ const adminUserIdentityToken: UserIdentityInfoUserName = {
         console.log(" value has changed : ", dataValue.value.toString());
       });
       
-      await timeout(600000);
+      await timeout(5000);
+
+      monitoredItem.setMonitoringMode(MonitoringMode.Disabled);
+      console.log("monitoring mode: disabled");
+
+      await timeout(5000);
+
+      monitoredItem.setMonitoringMode(MonitoringMode.Reporting);
+      console.log("monitoring mode: reporting");
+
+      await timeout(10000);
+
       
       console.log("now terminating subscription");
       await subscription.terminate();

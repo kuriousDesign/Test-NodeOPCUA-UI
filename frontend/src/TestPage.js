@@ -7,10 +7,12 @@ export default class TestPage extends Component {
         this.state = {
             testButton: "not yet gotten",
             testStatus: "not yet gotten",
-            testInt: "not yet gotten"
+            testInt: "not yet gotten",
+            testCnt: "not yet gotten"
         };
         this.handleButtonClick();
         this.loadData = this.loadData.bind(this);
+        axios.get("/api/addMonitoredItem/testCnt").then(response =>{});
 
     }
 
