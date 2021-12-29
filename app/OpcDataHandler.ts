@@ -1,6 +1,7 @@
-import { OPCUAClient, MessageSecurityMode, SecurityPolicy, AttributeIds, makeBrowsePath, BrowsePathResult, ClientSubscription, TimestampsToReturn, MonitoringParametersOptions, ReadValueIdOptions, ClientMonitoredItem, DataValue, StatusCodes, DataType, UserIdentityInfoUserName, UserTokenType, MonitoringMode, writeTCPMessageHeader, ClientSession } from "node-opcua";
+import { resolveNodeId, OPCUAClient, MessageSecurityMode, SecurityPolicy, AttributeIds, makeBrowsePath, BrowsePathResult, ClientSubscription, TimestampsToReturn, MonitoringParametersOptions, ReadValueIdOptions, ClientMonitoredItem, DataValue, StatusCodes, DataType, UserIdentityInfoUserName, UserTokenType, MonitoringMode, writeTCPMessageHeader, ClientSession } from "node-opcua";
+import { configurationFileSimpleTemplate } from "node-opcua-pki";
 import { isObjectBindingPattern } from "typescript";
-import { Server, Socket } from "socket.io";
+//import { Server, Socket } from "socket.io";
 
 interface DataValueBoolean {
   dataType: string;
@@ -29,7 +30,10 @@ export class OpcDataHandler {
     endpointMustExist: false,
   };
 
-  private endpointUrl = "opc.tcp://Jakers-Laptop:4840";
+  private laptopName = "AlienLaptop";
+  //private laptopName = "Jakers-Laptop";
+  //private endpointUrl = "opc.tcp://Jakers-Laptop:4840";
+  private endpointUrl = "opc.tcp://" + this.laptopName + ":4840";
 
   // the credentials
   private adminUserIdentityToken: UserIdentityInfoUserName = {
@@ -41,11 +45,11 @@ export class OpcDataHandler {
   private client: OPCUAClient;
   private subscription: ClientSubscription;
   private maxAge = 0;
-  private nodeIdBase = "ns=4;s=|var|CODESYS Control Win V3 x64.Application.HMI.";
+  private nodeIdBase = "ns=4;s=|var|CODESYS Control Win V3 x64.Application.";
 
   constructor() {
     this.client = OPCUAClient.create(this.options);
-    //this.connectToServer();
+    this.main();
   }
 
   public async connectToServer() {
@@ -72,6 +76,19 @@ export class OpcDataHandler {
     } catch (err) {
       console.log("An error has occured : ", err);
     }
+  }
+
+  public async readCustomDataTag(tag: string) {
+    var nodeId = this.nodeIdBase + tag;
+    var nodeToRead = {
+      nodeId: nodeId,
+      attributeId: AttributeIds.Value,
+    };
+    var dataValue = await this.session.read(nodeToRead, this.maxAge);
+    //console.log("dataValue from readCustomDataTag: ", dataValue.toString());
+    return dataValue.value.value.toJSON();
+    //var output = this.extractBoolean(dataValue);
+    //console.log("output from readBoolTag/" + tag, ":", output.toString())
   }
 
   public async readBoolTag(tag: string, cb: (val: boolean) => any) {
@@ -140,6 +157,32 @@ export class OpcDataHandler {
     return result;
   }
 
+  public async writeCustomDataTag(tag: string, dataType: string, val: any) {
+    //1. creating the node id
+    var nodeIdBaseForDataTypes = "ns=4;s=|type|CODESYS Control Win V3 x64.Application.";
+    var dataTypeNodeId = resolveNodeId(nodeIdBaseForDataTypes + dataType);
+    //console.log(dataTypeNodeId.toString());
+
+    //2. constructing the extension object
+    var myExtensionObject = await this.session.constructExtensionObject(dataTypeNodeId, val);
+    //console.log(myExtensionObject.toString());
+    //console.log(val);
+    //3. Writing the extension object
+    const tagNodeId = this.nodeIdBase + tag;
+    const statusCode = await this.session.write({
+      nodeId: tagNodeId,
+      attributeId: AttributeIds.Value,
+      value: {
+        statusCode: StatusCodes.Good,
+        value: {
+          dataType: DataType.ExtensionObject,
+          value: myExtensionObject,
+        },
+      },
+    });
+    //console.log("StatusCode = ", statusCode.toString());
+  }
+
   public async createSubscription() {
     console.log("creating subscription");
     this.subscription = ClientSubscription.create(this.session, {
@@ -165,6 +208,37 @@ export class OpcDataHandler {
       });
 
     //this.addMonitoredItem("testCnt");
+  }
+
+  public async addCustomDataMonitoredItem(tag: string) {
+    // install monitored item
+    var nodeIdTag = this.nodeIdBase + tag;
+    var itemToMonitor: ReadValueIdOptions = {
+      nodeId: nodeIdTag,
+      attributeId: AttributeIds.Value,
+    };
+
+    var parameters: MonitoringParametersOptions = {
+      samplingInterval: 100,
+      discardOldest: true,
+      queueSize: 10,
+    };
+
+    var monitoredItem = ClientMonitoredItem.create(this.subscription, itemToMonitor, parameters, TimestampsToReturn.Both);
+
+    monitoredItem.on("changed", (dataValue: DataValue) => {
+      var extObj = dataValue.value.value.toJSON();
+      //console.log(tag, " value has changed : ");
+      //console.log(extObj);
+
+      // ioserver.sockets.emit('message', {
+      //     value: dataValue.value.value,
+      //     timestamp: dataValue.serverTimestamp,
+      //     nodeId: nodeIdTag,
+      //     browseName: "testInt"
+      // });
+    });
+    return monitoredItem;
   }
 
   public async addMonitoredItem(tag: string) {
@@ -212,20 +286,42 @@ export class OpcDataHandler {
       // step 1 : connect to server and create session
       await this.connectToServer();
 
+      // step 2 : read customer data tag
+      var CON = await this.readCustomDataTag("Main.CON");
+      //console.log("CON:");
+      //console.log(CON);
+      //console.log("CON.Is.ColorCode:");
+      //console.log(CON.is.colorCode);
+
+      // step 2 : add custom data tag monitored item
+      var robMonitoredItem = await this.addCustomDataMonitoredItem("Main.ROB");
+
+      // step 2 : write to custom data tag
+      //object must follow camelCase, even if the component name is CamelCase in opcua Server
+      var valTempCfg = {
+        mnemonic: "tmpCf",
+        id: 77,
+        childId: 7,
+        parentId: 11,
+      };
+      var tagName = "Main.tempCfg";
+      var dataTypeName = "DeviceCfg";
+      await this.writeCustomDataTag(tagName, dataTypeName, valTempCfg);
+
       // step 2' : read a variable with read
-      var val1 = await this.readBoolTag("testStatus", () => {});
-      console.log("testStatus before write: ", val1.toString());
+      var val1 = await this.readBoolTag("Machine.EstopCircuit_OK", () => {});
+      //console.log("ReadBoolTag: ", val1.toString());
 
       // step 3: write to testButton
-      var writeResult = await this.writeBoolTag("testButton", true);
+      //var writeResult = await this.writeBoolTag("testButton", true);
 
       // step 4: re-read testStatus
-      var val2 = await this.readBoolTag("testStatus", () => {});
-      console.log("testStatus after write: ", val2.toString());
+      // var val2 = await this.readBoolTag("testStatus", () => {});
+      //console.log("testStatus after write: ", val2.toString());
 
       // close session and disconnect
-      await this.closeAndDisconnect();
-      console.log("Disconnected and now done!");
+      //await this.closeAndDisconnect();
+      //console.log("Disconnected and now done!");
     } catch (err) {
       console.log("An error has occured : ", err);
     }

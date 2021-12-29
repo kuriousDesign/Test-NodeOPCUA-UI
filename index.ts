@@ -1,6 +1,5 @@
-import {CustomServer} from "./app/CustomServer";
-import express from 'express';
-//const app = express();
+import { CustomServer } from "./app/CustomServer";
+import express from "express";
 
 const port = 8080;
 
